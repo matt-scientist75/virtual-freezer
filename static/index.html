@@ -1,0 +1,267 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Virtual Freezer - 9x9 Cryo Box</title>
+  <style>
+    :root{ --accent:#2563eb; --bg:#0b1220; --panel:#111827; --text:#e5e7eb; --muted:#9ca3af; }
+    body{ margin:0; font-family: Arial, Helvetica, sans-serif; background:var(--bg); color:var(--text); }
+    header{ padding:12px; border-bottom:1px solid #1f2937; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .panel{ background:var(--panel); border:1px solid #1f2937; border-radius:10px; padding:12px; }
+    .grid{ display:grid; gap:6px; }
+    .grid .cell{ display:flex; align-items:center; justify-content:center; border:1px solid #1f2937; border-radius:6px; height:34px; cursor:pointer; }
+    .cell.empty{ background:#0e1726; color:#9ca3af; }
+    .cell.occupied{ background:rgba(37,99,235,.2); border-color:#2646c4; }
+    .cell.reserved{ background:rgba(245,158,11,.2); border-color:#a86c0b; }
+    button{ background:#0e1726; color:var(--text); border:1px solid #1f2937; padding:8px 10px; border-radius:8px; cursor:pointer; }
+    button.primary{ background:var(--accent); border-color:var(--accent); }
+    input, select{ background:#0e1726; color:var(--text); border:1px solid #1f2937; padding:8px 10px; border-radius:8px; }
+    .banner{ background:#1f2937; border:1px solid #374151; padding:12px; border-radius:10px; color:#e5e7eb; margin-bottom:8px; }
+    .error{ background:#3b0d0d; border:1px solid #7f1d1d; }
+    #log{ font-family: Consolas, monospace; font-size:12px; white-space:pre-wrap; color:#93c5fd; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Virtual Freezer</strong>
+    <select id="containerSelect"></select>
+    <input id="search" placeholder="Search vial (1-81)" />
+    <select id="statusFilter">
+      <option value="">Any status</option>
+      <option value="OCCUPIED">Occupied</option>
+      <option value="EMPTY">Empty</option>
+      <option value="RESERVED">Reserved</option>
+    </select>
+    <button id="exportCsv" class="primary">Export CSV</button>
+  </header>
+  <main style="padding:12px">
+    <div class="panel">
+      <div id="emptyState" class="banner" style="display:none;">
+        <strong>No containers found.</strong>
+        <div style="margin-top:6px">Click to create a 9x9 cryo box: <button id="createBtn" class="primary">Create 9x9 Box</button></div>
+      </div>
+      <div id="errorState" class="banner error" style="display:none;"></div>
+      <div id="containerTitle" style="margin:8px 0; font-weight:600"></div>
+      <div id="grid" class="grid" role="grid"></div>
+      <div id="details" style="margin-top:8px; font-size:13px; color:#9ca3af">Click a cell to edit status or vial name (1-81).</div>
+      <div id="log"></div>
+    </div>
+  </main>
+<script>
+(function(){
+  var API = location.origin;
+  var containers = [];
+  var containerId = null;
+  var state = { cells: [], filterText:'', filterStatus:'' };
+  var logEl = document.getElementById('log');
+
+  function log(msg){ try{ console.log(msg); logEl.textContent += String(msg) + "\n"; }catch(e){} }
+  function showError(err){
+    var e = document.getElementById('errorState');
+    e.style.display='block';
+    e.textContent = 'Error: ' + (err && err.message ? err.message : String(err));
+    log('ERROR: ' + String(err));
+  }
+  function httpGetJson(url){
+    log('GET ' + url);
+    return fetch(url).then(function(r){
+      if(!r.ok){ throw new Error('HTTP ' + r.status + ' on ' + url); }
+      return r.json();
+    });
+  }
+  function httpPostJson(url, body){
+    log('POST ' + url + ' body=' + JSON.stringify(body));
+    return fetch(url, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    }).then(function(r){
+      if(!r.ok){ throw new Error('HTTP ' + r.status + ' on ' + url); }
+      return r.json();
+    });
+  }
+
+  function ensureUI(){
+    var select = document.getElementById('containerSelect');
+    var emptyBanner = document.getElementById('emptyState');
+    var title = document.getElementById('containerTitle');
+    var grid = document.getElementById('grid');
+
+    if (!containers.length){
+      emptyBanner.style.display = 'block';
+      select.innerHTML = '';
+      title.textContent = '';
+      grid.innerHTML = '';
+      var btn = document.getElementById('createBtn');
+      btn.onclick = function(){ createNineByNine(); };
+      log('UI empty state shown');
+      return false;
+    } else {
+      emptyBanner.style.display = 'none';
+      var options = '';
+      for (var i=0;i<containers.length;i++){
+        options += '<option value="' + containers[i].id + '">' + containers[i].name + '</option>';
+      }
+      select.innerHTML = options;
+      if (!containerId){ containerId = containers[0].id; }
+      select.value = containerId;
+      var c = null;
+      for (var j=0;j<containers.length;j++){ if (containers[j].id === containerId){ c = containers[j]; break; } }
+      if (!c){ c = containers[0]; containerId = c.id; }
+      title.textContent = c.name + ' \u00B7 ' + c.rows + '\u00D7' + c.cols;
+      log('UI set for container ' + containerId);
+      return true;
+    }
+  }
+
+  function init(){
+    log('init start');
+    httpGetJson(API + '/containers/')
+      .then(function(json){
+        containers = json;
+        log('containers length=' + containers.length);
+        var ok = ensureUI();
+        attachUI();
+        if (ok){ loadCells().then(function(){ renderGrid(getCols()); }); }
+      })
+      .catch(showError);
+  }
+  function getCols(){
+    var c=null;
+    for(var i=0;i<containers.length;i++){ if(containers[i].id===containerId){ c=containers[i]; break; } }
+    return c ? c.cols : 9;
+  }
+
+  function createNineByNine(){
+    httpPostJson(API + '/containers/', { name:'Cryo Box \u00B7 9x9', type:'BOX', rows:9, cols:9 })
+      .then(function(){ return httpGetJson(API + '/containers/'); })
+      .then(function(json){
+        containers = json;
+        containerId = containers[0].id;
+        ensureUI();
+        return loadCells();
+      })
+      .then(function(){ renderGrid(getCols()); })
+      .catch(showError);
+  }
+
+  function loadCells(){
+    return httpGetJson(API + '/containers/' + containerId + '/cells')
+      .then(function(json){
+        state.cells = json;
+        log('cells length=' + state.cells.length);
+      });
+  }
+
+  function matchesFilters(cell){
+    var t = (state.filterText||'').toLowerCase();
+    var s = state.filterStatus||'';
+    var text = String(cell.sample_id||'').toLowerCase();
+    var statusOk = !s || cell.status===s;
+    var textOk = !t || (text.indexOf(t) !== -1);
+    return statusOk && textOk;
+  }
+
+  function renderGrid(cols){
+    var grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    grid.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+    for (var i=0;i<state.cells.length;i++){
+      var cell = state.cells[i];
+      var visible = matchesFilters(cell);
+      var div = document.createElement('div');
+      div.className = 'cell ' + String(cell.status||'').toLowerCase();
+      div.style.opacity = visible? '1' : '0.25';
+      div.textContent = String.fromCharCode(64+cell.row) + String(cell.col);
+      div.title = 'Vial: ' + (cell.sample_id||'') + ' | Status: ' + cell.status;
+      div.onclick = (function(cellCopy){ return function(){ openEditor(cellCopy); }; })(cell);
+      grid.appendChild(div);
+    }
+    log('renderGrid done with ' + state.cells.length + ' cells');
+  }
+
+  function openEditor(cell){
+    var html = '' +
+      '<div class="panel" style="margin-top:12px">' +
+      '<strong>Edit ' + String.fromCharCode(64+cell.row) + String(cell.col) + '</strong>' +
+      '<div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:8px">' +
+      '<label>Status<select id="f_status">' +
+      '<option ' + (cell.status==='EMPTY'?'selected':'') + ' value="EMPTY">Empty</option>' +
+      '<option ' + (cell.status==='OCCUPIED'?'selected':'') + ' value="OCCUPIED">Occupied</option>' +
+      '<option ' + (cell.status==='RESERVED'?'selected':'') + ' value="RESERVED">Reserved</option>' +
+      '</select></label>' +
+      '<label>Vial name (1-81)<input id="f_sample" type="text" value="' + (cell.sample_id||'') + '" /></label>' +
+      '</div>' +
+      '<div style="margin-top:8px; display:flex; gap:8px">' +
+      '<button id="saveBtn" class="primary">Save</button>' +
+      '<button id="clearBtn">Clear</button>' +
+      '</div>' +
+      '</div>';
+    document.getElementById('details').innerHTML = html;
+    document.getElementById('saveBtn').onclick = function(){
+      var st = document.getElementById('f_status').value;
+      var sm = document.getElementById('f_sample').value.replace(/^\s+|\s+$/g,'');
+      fetch(API + '/containers/' + containerId + '/cells/' + cell.id, {
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ status: st, sample_id: sm||null })
+      }).then(function(){ return loadCells(); })
+        .then(function(){ renderGrid(getCols()); })
+        .catch(showError);
+    };
+    document.getElementById('clearBtn').onclick = function(){
+      fetch(API + '/containers/' + containerId + '/cells/' + cell.id, {
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ status: 'EMPTY', sample_id: null })
+      }).then(function(){ return loadCells(); })
+        .then(function(){ renderGrid(getCols()); })
+        .catch(showError);
+    };
+  }
+
+  function exportCsv(){
+    var rows = [['Row','Col','Coord','Status','Vial']];
+    for (var i=0;i<state.cells.length;i++){
+      var cell = state.cells[i];
+      rows.push([cell.row, cell.col, String.fromCharCode(64+cell.row) + String(cell.col), cell.status, cell.sample_id||'']);
+    }
+    var lines = [];
+    for (var j=0;j<rows.length;j++){
+      var r = rows[j];
+      var escaped = [];
+      for (var k=0;k<r.length;k++){
+        escaped.push('"' + String(r[k]).replace(/\\"/g,'\\"\\"') + '"');
+      }
+      lines.push(escaped.join(','));
+    }
+    var csv = lines.join('\n');
+    var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'cryo_box_9x9.csv'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function attachUI(){
+    document.getElementById('search').oninput = function(e){
+      state.filterText = e.target.value;
+      renderGrid(getCols());
+    };
+    document.getElementById('statusFilter').onchange = function(e){
+      state.filterStatus = e.target.value;
+      renderGrid(getCols());
+    };
+    document.getElementById('exportCsv').onclick = exportCsv;
+    document.getElementById('containerSelect').onchange = function(e){
+      containerId = Number(e.target.value);
+      loadCells().then(function(){ renderGrid(getCols()); });
+    };
+  }
+
+  // Start
+  init();
+})();
+</script>
+</body>
+</html>
