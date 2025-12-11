@@ -11,8 +11,8 @@
     body{ margin:0; font-family: Arial, Helvetica, sans-serif; background:var(--bg); color:var(--text); }
     header{ padding:12px; border-bottom:1px solid #1f2937; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
     .panel{ background:var(--panel); border:1px solid #1f2937; border-radius:10px; padding:12px; }
-    .grid{ display:grid; gap:6px; }
-    .grid .cell{ display:flex; align-items:center; justify-content:center; border:1px solid #1f2937; border-radius:6px; height:34px; cursor:pointer; }
+    .grid{ display:grid; gap:8px; }
+    .grid .cell{ display:flex; align-items:center; justify-content:center; border:2px solid #1f2937; border-radius:50%; width:50px; height:50px; cursor:pointer; font-weight:bold; font-size:14px; }
     .cell.empty{ background:#0e1726; color:#9ca3af; }
     .cell.occupied{ background:rgba(37,99,235,.2); border-color:#2646c4; }
     .cell.reserved{ background:rgba(245,158,11,.2); border-color:#a86c0b; }
@@ -174,7 +174,7 @@
       var div = document.createElement('div');
       div.className = 'cell ' + String(cell.status||'').toLowerCase();
       div.style.opacity = visible? '1' : '0.25';
-      div.textContent = String.fromCharCode(64+cell.row) + String(cell.col);
+      div.textContent = String(cell.sample_id||'');
       div.title = 'Vial: ' + (cell.sample_id||'') + ' | Status: ' + cell.status;
       div.onclick = (function(cellCopy){ return function(){ openEditor(cellCopy); }; })(cell);
       grid.appendChild(div);

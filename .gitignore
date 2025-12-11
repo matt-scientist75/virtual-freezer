@@ -1,0 +1,5 @@
+.venv/
+setup_and_run.bat
+freezer.db
+app/__pycache__
+app/routers/__pycache__
