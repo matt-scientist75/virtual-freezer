@@ -1,0 +1,23 @@
+:root{ --accent:#2563eb; --bg:#0b1220; --panel:#111827; --text:#e5e7eb; --muted:#9ca3af; }
+body{ margin:0; font-family: Arial, Helvetica, sans-serif; background:var(--bg); color:var(--text); }
+header{ padding:12px; border-bottom:1px solid #1f2937; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.panel{ background:var(--panel); border:1px solid #1f2937; border-radius:10px; padding:12px; }
+.grid{ display:grid; gap:1px; width:fit-content; }
+.grid .cell{ display:flex; align-items:center; justify-content:center; border:2px solid #1f2937; border-radius:50%; width:50px; height:50px; cursor:pointer; font-weight:bold; font-size:14px; }
+.cell.match{ box-shadow: 0 0 0 3px rgba(59,130,246,0.18); border-color: rgba(59,130,246,0.9); }
+.cell.empty{ background:#0e1726; color:#9ca3af; }
+.cell.occupied{ background:rgba(37,99,235,.2); border-color:#2646c4; }
+.cell.reserved{ background:rgba(245,158,11,.2); border-color:#a86c0b; }
+button{ background:#0e1726; color:var(--text); border:1px solid #1f2937; padding:8px 10px; border-radius:8px; cursor:pointer; }
+button.primary{ background:var(--accent); border-color:var(--accent); }
+input, select{ background:#0e1726; color:var(--text); border:1px solid #1f2937; padding:8px 10px; border-radius:8px; }
+.banner{ background:#1f2937; border:1px solid #374151; padding:12px; border-radius:10px; color:#e5e7eb; margin-bottom:8px; }
+.error{ background:#3b0d0d; border:1px solid #7f1d1d; }
+#log{ display:none; font-family: Consolas, monospace; font-size:12px; white-space:pre-wrap; color:#93c5fd; }
+.modal-overlay{ display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center; }
+.modal-overlay.active{ display:flex; }
+.modal-dialog{ background:var(--panel); border:1px solid #1f2937; border-radius:10px; padding:24px; max-width:400px; box-shadow:0 4px 20px rgba(0,0,0,0.5); }
+.modal-dialog h2{ margin:0 0 12px 0; color:var(--text); }
+.modal-dialog p{ margin:0 0 20px 0; color:var(--text); }
+.modal-buttons{ display:flex; gap:8px; justify-content:flex-end; }
+.modal-buttons button{ padding:10px 16px; }

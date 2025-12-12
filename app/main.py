@@ -1,8 +1,9 @@
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, FileResponse
 from sqlalchemy.orm import Session
+import os
 
 from .database import engine, Base, SessionLocal
 from .routers import containers
@@ -14,6 +15,11 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 Base.metadata.create_all(bind=engine)
 
+@app.get("/favicon.ico")
+def favicon():
+    # Return a simple favicon or 204 No Content
+    return RedirectResponse(url="/static/favicon.ico", status_code=301)
+
 @app.get("/")
 def root():
     # Redirect root to the front-end
@@ -21,30 +27,10 @@ def root():
 
 @app.on_event("startup")
 def seed():
-    """Safer seed: if no containers, create a 9×9 and its cells. If containers exist but any has zero cells, create its cells."""
+    """Initialize database tables but don't create any containers."""
     db: Session = SessionLocal()
     try:
-        containers_count = db.query(models.Container).count()
-        if containers_count == 0:
-            c = models.Container(name="Cryo Box · 9×9", type="BOX", rows=9, cols=9)
-            db.add(c)
-            db.flush()
-            n=1
-            for r in range(1,10):
-                for col in range(1,10):
-                    db.add(models.Cell(container_id=c.id, row=r, col=col, status='EMPTY', sample_id=str(n)))
-                    n += 1
-            db.commit()
-        else:
-            # Ensure each container has its cells
-            for c in db.query(models.Container).all():
-                cell_count = db.query(models.Cell).filter(models.Cell.container_id==c.id).count()
-                if cell_count == 0:
-                    n=1
-                    for r in range(1, c.rows+1):
-                        for col in range(1, c.cols+1):
-                            db.add(models.Cell(container_id=c.id, row=r, col=col, status='EMPTY', sample_id=str(n)))
-                            n += 1
-                    db.commit()
+        # Just ensure tables exist, no automatic data creation
+        pass
     finally:
         db.close()

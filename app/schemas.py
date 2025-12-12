@@ -6,7 +6,9 @@ class CellBase(BaseModel):
     row: int
     col: int
     status: str
-    sample_id: Optional[str] = None
+    vial_name: Optional[str] = None
+    owner: Optional[str] = None
+    project: Optional[str] = None
 
 class Cell(CellBase):
     id: int
@@ -28,6 +30,11 @@ class Container(ContainerBase):
 class ContainerCreate(ContainerBase):
     pass
 
+class ContainerUpdate(BaseModel):
+    name: Optional[str] = None
+
 class CellUpdate(BaseModel):
+    owner: Optional[str] = None
+    project: Optional[str] = None
     status: Optional[str] = None
-    sample_id: Optional[str] = None
+    vial_name: Optional[str] = None
